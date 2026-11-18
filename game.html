@@ -7,14 +7,14 @@
 #toolbar{position:absolute;top:15px;right:15px;display:flex;gap:8px}button{border:1px solid #ffffff55;background:#09233cdd;color:#fff;border-radius:12px;padding:12px;font-weight:750;cursor:pointer}button:active,.held{background:#128e9e!important}
 #controls{position:absolute;bottom:20px;left:18px;right:18px;display:flex;justify-content:space-between;pointer-events:none}#controls>div{display:flex;gap:10px;pointer-events:auto}#controls button{font-size:25px;width:67px;height:67px;user-select:none}
 #help{position:absolute;bottom:103px;left:50%;transform:translateX(-50%);background:#091e31bf;border-radius:10px;padding:8px 13px;font-size:12px;white-space:nowrap}#toast{position:absolute;top:25%;left:50%;transform:translateX(-50%);padding:16px 25px;border-radius:13px;background:#0a8d8bdf;font-weight:800;opacity:0;transition:opacity .25s;pointer-events:none;text-align:center}
-#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#071827;color:#fff;font-weight:700;z-index:20}#error{display:none;position:absolute;inset:0;background:#071827;z-index:30;padding:35px;align-items:center;justify-content:center;text-align:center}
-@media(max-width:600px){#hud{top:8px;left:8px;padding:11px;max-width:185px}#hud h1{font-size:14px}#speed{font-size:32px}#toolbar{top:8px;right:8px}#toolbar button{padding:9px;font-size:11px}#controls button{width:59px;height:59px}#help{font-size:10px;bottom:91px}}
+#minimap{position:absolute;right:18px;bottom:110px;width:165px;height:165px;border-radius:14px;background:#0a1d29e8;border:2px solid #ffffff77;box-shadow:0 10px 28px #0008}#district{position:absolute;right:18px;bottom:285px;background:#071827c9;border-radius:9px;padding:7px 10px;font-size:11px;letter-spacing:1px}#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#071827;color:#fff;font-weight:700;z-index:20}#error{display:none;position:absolute;inset:0;background:#071827;z-index:30;padding:35px;align-items:center;justify-content:center;text-align:center}
+@media(max-width:600px){#hud{top:8px;left:8px;padding:11px;max-width:185px}#hud h1{font-size:14px}#speed{font-size:32px}#toolbar{top:8px;right:8px}#toolbar button{padding:9px;font-size:11px}#controls button{width:59px;height:59px}#minimap{width:115px;height:115px;bottom:94px;right:8px}#district{right:8px;bottom:214px;font-size:9px}#help{font-size:10px;bottom:91px}}
 </style></head><body>
 <div id="loading">Loading Mumbai 3D World…</div><div id="error">3D graphics could not load. Please check your internet connection and WebGL support.</div>
 <div id="hud"><h1>🏎️ MUMBAI STREET DRIVE</h1><small>3D FREE ROAM • PORSCHE-INSPIRED COUPE</small><div><span id="speed">0</span> <span class="unit">KM/H</span></div><div id="mission">🎯 Reach Gateway of India</div><div id="distance">Follow the glowing waypoint</div><small id="found">Landmarks: 0 / 5</small></div>
 <div id="toolbar"><button id="camera">📷 CAMERA</button><button id="reset">↻ RESET</button></div>
 <div id="help">WASD / arrows: drive · Turn at intersections · Space: brake · C: camera</div>
-<div id="controls"><div><button data-key="ArrowLeft">◀</button><button data-key="ArrowRight">▶</button></div><div><button data-key="ArrowDown">▼</button><button data-key="ArrowUp">▲</button></div></div><div id="toast"></div>
+<div id="controls"><div><button data-key="ArrowLeft">◀</button><button data-key="ArrowRight">▶</button></div><div><button data-key="ArrowDown">▼</button><button data-key="ArrowUp">▲</button></div></div><div id="toast"></div><canvas id="minimap" width="180" height="180" aria-label="Mini map"></canvas><div id="district">SOUTH MUMBAI • FREE ROAM</div>
 <script type="module">
 import * as THREE from 'https://esm.sh/three@0.160.1';
 const $=id=>document.getElementById(id);
@@ -47,24 +47,65 @@ const color=buildingColors[Math.floor(random()*buildingColors.length)];
 box(w,h,d,mat(color),x,h/2+.2,z);buildings.push({x,z,w,d});
 if(random()<.8){box(w+1,1,d+1,trimMat,x,h+.5,z);for(let floor=5;floor<h-3;floor+=7){for(let wx=-w/2+4;wx<w/2-1;wx+=6){box(2.5,3.2,.08,windowMat,x+wx,floor,z+d/2+.06);box(2.5,3.2,.08,windowMat,x+wx,floor,z-d/2-.06)}}}
 }}
+// Street furniture, palm trees and neighborhood details.
+const poleMat=mat(0x34434d),leafMat=mat(0x2c7548),trunkMat=mat(0x806345);
+for(let i=-6;i<=6;i++)for(let j=-6;j<=6;j++){if((i+j)%3!==0)continue;const x=i*roadSpacing+roadWidth/2+5,z=j*roadSpacing+roadWidth/2+5;
+box(.45,7,.45,poleMat,x,3.6,z);box(2,.16,.35,poleMat,x,7.15,z-.6);
+const bulb=new THREE.Mesh(new THREE.SphereGeometry(.34,8,8),new THREE.MeshBasicMaterial({color:0xffedbd}));bulb.position.set(x,7,z-1);scene.add(bulb);
+if((i+j)%4===0){box(.8,7,.8,trunkMat,x+8,3.5,z+4);for(let k=0;k<5;k++){const leaf=new THREE.Mesh(new THREE.ConeGeometry(3.6,8,5),leafMat);leaf.position.set(x+8,10,z+4);leaf.rotation.z=k*1.256;scene.add(leaf)}}}
 const promenade=box(15,.25,1700,sidewalkMat,-650,.18,0);
 for(let z=-780;z<800;z+=38){box(.5,9,.5,mat(0x555c64),-648,4.7,z);const lamp=new THREE.Mesh(new THREE.SphereGeometry(1.3,10,10),new THREE.MeshBasicMaterial({color:0xfff2c0}));lamp.position.set(-648,9.7,z);scene.add(lamp)}
+// Porsche 911-inspired coupe: original procedural geometry, no third-party branded model.
 const car=new THREE.Group();scene.add(car);const bodyMat=mat(0xe8edf2,.28,.75),dark=mat(0x17222d,.34,.2),glass=mat(0x1e3b54,.1,.3),red=mat(0xff2540,.25),white=mat(0xfff7d5,.18);
 box(2.05,.52,4.65,bodyMat,0,.68,0,car);box(1.85,.42,2.55,bodyMat,0,1.15,.08,car);
 box(1.67,.045,.92,glass,0,1.39,-.67,car);box(1.67,.045,.78,glass,0,1.39,.91,car);
 box(1.65,.10,.3,bodyMat,0,1.13,2.22,car);box(1.8,.11,.14,dark,0,.5,-2.32,car);box(1.8,.11,.14,dark,0,.5,2.32,car);
 for(let s of [-1,1]){box(.38,.12,.11,white,s*.76,.83,-2.34,car);box(.43,.12,.11,red,s*.74,.82,2.34,car)}
-const wheels=[];for(let x of [-1,1])for(let z of [-1.52,1.52]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.43,.43,.28,20),dark);wheel.rotation.z=Math.PI/2;wheel.position.set(x*1.03,.46,z);wheel.castShadow=true;car.add(wheel);wheels.push(wheel)}
+const wheels=[];const rimMat=mat(0xa9b6c2,.26,.8),rubber=mat(0x11151b,1),brake=mat(0xe3a226,.4,.4);
+for(let x of [-1,1])for(let z of [-1.52,1.52]){const wheelGroup=new THREE.Group();wheelGroup.position.set(x*1.03,.46,z);car.add(wheelGroup);
+const tire=new THREE.Mesh(new THREE.CylinderGeometry(.43,.43,.31,24),rubber);tire.rotation.z=Math.PI/2;tire.castShadow=true;wheelGroup.add(tire);
+const rim=new THREE.Mesh(new THREE.CylinderGeometry(.29,.29,.33,10),rimMat);rim.rotation.z=Math.PI/2;wheelGroup.add(rim);
+const hub=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,.35,18),dark);hub.rotation.z=Math.PI/2;wheelGroup.add(hub);wheels.push(wheelGroup)}
+// Sculpted nose, hood, fenders, grille, LED strips, panoramic glass and spoiler.
+box(1.87,.18,1.18,bodyMat,0,.95,-1.60,car);
+box(1.90,.18,.33,bodyMat,0,.60,-2.18,car);
+box(1.5,.05,.18,dark,0,.43,-2.33,car);
+for(const s of [-1,1]){const headlight=new THREE.Mesh(new THREE.SphereGeometry(.24,12,8),white);headlight.scale.set(1.1,.55,.35);headlight.position.set(s*.77,.89,-2.23);car.add(headlight);
+box(.12,.10,1.45,bodyMat,s*.98,.86,-.45,car);
+box(.22,.11,.42,dark,s*.90,.66,-2.28,car);
+const mirror=box(.30,.14,.38,bodyMat,s*1.10,1.21,-.45,car);mirror.rotation.y=s*.18;
+box(.68,.07,.11,red,s*.48,.88,2.35,car)}
+box(1.62,.10,.12,red,0,.88,2.35,car);
+box(1.72,.11,.32,bodyMat,0,1.15,2.02,car);
+const hoodBadge=new THREE.Mesh(new THREE.CircleGeometry(.09,12),mat(0xcba54c,.3,.7));hoodBadge.rotation.x=-Math.PI/2;hoodBadge.position.set(0,1.048,-1.88);car.add(hoodBadge);
+const underglow=new THREE.PointLight(0xa6d7ff,.7,9);underglow.position.set(0,.4,0);car.add(underglow);
 let pos=new THREE.Vector3(0,0,0),heading=0,speed=0,mode=0;let collisionFlash=0;const keys=new Set();
 const destinations=[{name:'Gateway of India',x:0,z:-350},{name:'CSMT',x:345,z:-230},{name:'Marine Drive',x:-575,z:120},{name:'Colaba Causeway',x:115,z:-580},{name:'Nariman Point',x:-460,z:-465}];let idx=0;const discovered=new Set();
 const beacon=new THREE.Group();const beam=new THREE.Mesh(new THREE.CylinderGeometry(3,3,90,24,1,true),new THREE.MeshBasicMaterial({color:0xffd448,transparent:true,opacity:.17,depthWrite:false,side:THREE.DoubleSide}));beam.position.y=45;beacon.add(beam);const ring=new THREE.Mesh(new THREE.TorusGeometry(5,.7,10,32),new THREE.MeshBasicMaterial({color:0xffd448}));ring.rotation.x=Math.PI/2;ring.position.y=1.3;beacon.add(ring);scene.add(beacon);
 function checkpoint(){const d=destinations[idx];beacon.position.set(d.x,0,d.z);$('mission').textContent='🎯 Explore '+d.name;$('found').textContent='Landmarks: '+discovered.size+' / '+destinations.length}
 checkpoint();
+// Small moving traffic vehicles constrained to lanes on the street grid.
+const traffic=[];const trafficColors=[0xffc94c,0x4489ca,0xd6dce2,0x2c8a6d,0xc34e52];
+for(let i=0;i<18;i++){const g=new THREE.Group();const m=mat(trafficColors[i%trafficColors.length],.5,.35);
+box(1.75,.6,3.7,m,0,.65,0,g);box(1.5,.55,1.7,glass,0,1.13,.15,g);
+for(let s of [-1,1])for(let z of [-1.13,1.13]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.33,.33,.23,12),rubber);wheel.rotation.z=Math.PI/2;wheel.position.set(s*.88,.34,z);g.add(wheel)}
+const horizontal=i%2===0,lane=(Math.floor(i/2)%11-5)*roadSpacing,dir=i%4<2?1:-1;
+g.position.set(horizontal?((i*83)%1350-675):lane+(dir>0?-4:4),0,horizontal?lane+(dir>0?4:-4):((i*97)%1350-675));
+g.rotation.y=horizontal?(dir>0?-Math.PI/2:Math.PI/2):(dir>0?Math.PI:0);
+scene.add(g);traffic.push({g,horizontal,lane,dir,speed:9+i%6*2})}
 const controls={w:'ArrowUp',a:'ArrowLeft',s:'ArrowDown',d:'ArrowRight'};
 addEventListener('keydown',e=>{const k=controls[e.key.toLowerCase()]||e.key;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(k)){e.preventDefault();keys.add(k)}if(e.key.toLowerCase()==='c')mode=(mode+1)%3});
 addEventListener('keyup',e=>keys.delete(controls[e.key.toLowerCase()]||e.key));addEventListener('blur',()=>keys.clear());
 document.querySelectorAll('[data-key]').forEach(el=>{const k=el.dataset.key;el.addEventListener('pointerdown',e=>{e.preventDefault();keys.add(k);el.classList.add('held');el.setPointerCapture(e.pointerId)});const up=()=>{keys.delete(k);el.classList.remove('held')};el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);el.addEventListener('lostpointercapture',up)});
 $('camera').onclick=()=>mode=(mode+1)%3;$('reset').onclick=()=>{pos.set(0,0,0);heading=0;speed=0};
+const mini=$('minimap'),ctx=mini.getContext('2d');
+function drawMinimap(){const W=mini.width,H=mini.height,S=.16;ctx.clearRect(0,0,W,H);ctx.fillStyle='#102631';ctx.fillRect(0,0,W,H);
+ctx.save();ctx.translate(W/2,H/2);ctx.rotate(-heading);
+ctx.strokeStyle='#62717a';ctx.lineWidth=roadWidth*S;
+for(let k=-7;k<=7;k++){const n=k*roadSpacing;ctx.beginPath();ctx.moveTo((n-pos.x)*S,(-850-pos.z)*S);ctx.lineTo((n-pos.x)*S,(850-pos.z)*S);ctx.stroke();
+ctx.beginPath();ctx.moveTo((-850-pos.x)*S,(n-pos.z)*S);ctx.lineTo((850-pos.x)*S,(n-pos.z)*S);ctx.stroke()}
+const d=destinations[idx];ctx.fillStyle='#ffcf45';ctx.beginPath();ctx.arc((d.x-pos.x)*S,(d.z-pos.z)*S,5,0,Math.PI*2);ctx.fill();ctx.restore();
+ctx.fillStyle='#ff4c55';ctx.beginPath();ctx.moveTo(W/2,H/2-9);ctx.lineTo(W/2-6,H/2+7);ctx.lineTo(W/2+6,H/2+7);ctx.closePath();ctx.fill()}
 const follow=new THREE.Vector3();const clock=new THREE.Clock();let toastUntil=0;
 function update(){const dt=Math.min(clock.getDelta(),.05);const accel=keys.has('ArrowUp')?1:0,back=keys.has('ArrowDown')?1:0;
 if(accel)speed+=20*dt;if(back)speed-=29*dt;if(!accel&&!back)speed*=Math.pow(.975,dt*60);if(keys.has(' '))speed*=Math.pow(.8,dt*60);speed=THREE.MathUtils.clamp(speed,-26,115);if(Math.abs(speed)<.15)speed=0;
@@ -96,6 +137,9 @@ for(const w of wheels)w.rotation.x+=speed*dt*.12;
 const backDistance=mode===0?12:mode===1?5:42,height=mode===0?5.6:mode===1?2.7:34;
 const target=new THREE.Vector3(pos.x-Math.sin(r)*backDistance,height,pos.z+Math.cos(r)*backDistance);
 follow.lerp(target,1-Math.exp(-5*dt));camera.position.copy(follow);camera.lookAt(pos.x+Math.sin(r)*12,mode===2?0:1.8,pos.z-Math.cos(r)*12);
+for(const t of traffic){const p=t.g.position,move=t.dir*t.speed*dt;if(t.horizontal){p.x+=move;if(p.x>790)p.x=-790;if(p.x< -790)p.x=790}else{p.z+=move;if(p.z>790)p.z=-790;if(p.z< -790)p.z=790}
+if(Math.abs(pos.x-p.x)<2.5&&Math.abs(pos.z-p.z)<3.7){speed*=-.25;collisionFlash=performance.now()+250}}
+drawMinimap();
 const d=destinations[idx],dist=Math.hypot(pos.x-d.x,pos.z-d.z);$('distance').textContent=Math.round(dist)+' m to checkpoint';$('speed').textContent=Math.abs(Math.round(speed));
 beacon.rotation.y+=dt*.5;ring.rotation.z+=dt*.6;
 if(dist<16){discovered.add(d.name);idx=(idx+1)%destinations.length;checkpoint();$('toast').textContent='✓ '+d.name+' discovered!';$('toast').style.opacity='1';toastUntil=performance.now()+2300}
