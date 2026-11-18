@@ -13,7 +13,7 @@
 <div id="loading">Loading Mumbai 3D World…</div><div id="error">3D graphics could not load. Please check your internet connection and WebGL support.</div>
 <div id="hud"><h1>🏎️ MUMBAI STREET DRIVE</h1><small>3D FREE ROAM • PORSCHE-INSPIRED COUPE</small><div><span id="speed">0</span> <span class="unit">KM/H</span></div><div id="mission">🎯 Reach Gateway of India</div><div id="distance">Follow the glowing waypoint</div><small id="found">Landmarks: 0 / 5</small></div>
 <div id="toolbar"><button id="camera">📷 CAMERA</button><button id="reset">↻ RESET</button></div>
-<div id="help">WASD / arrows: drive · Space: brake · C: camera</div>
+<div id="help">WASD / arrows: drive · Turn at intersections · Space: brake · C: camera</div>
 <div id="controls"><div><button data-key="ArrowLeft">◀</button><button data-key="ArrowRight">▶</button></div><div><button data-key="ArrowDown">▼</button><button data-key="ArrowUp">▲</button></div></div><div id="toast"></div>
 <script type="module">
 import * as THREE from 'https://esm.sh/three@0.160.1';
@@ -55,7 +55,7 @@ box(1.67,.045,.92,glass,0,1.39,-.67,car);box(1.67,.045,.78,glass,0,1.39,.91,car)
 box(1.65,.10,.3,bodyMat,0,1.13,2.22,car);box(1.8,.11,.14,dark,0,.5,-2.32,car);box(1.8,.11,.14,dark,0,.5,2.32,car);
 for(let s of [-1,1]){box(.38,.12,.11,white,s*.76,.83,-2.34,car);box(.43,.12,.11,red,s*.74,.82,2.34,car)}
 const wheels=[];for(let x of [-1,1])for(let z of [-1.52,1.52]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.43,.43,.28,20),dark);wheel.rotation.z=Math.PI/2;wheel.position.set(x*1.03,.46,z);wheel.castShadow=true;car.add(wheel);wheels.push(wheel)}
-let pos=new THREE.Vector3(0,0,0),heading=0,speed=0,mode=0;const keys=new Set();
+let pos=new THREE.Vector3(0,0,0),heading=0,speed=0,mode=0;let collisionFlash=0;const keys=new Set();
 const destinations=[{name:'Gateway of India',x:0,z:-350},{name:'CSMT',x:345,z:-230},{name:'Marine Drive',x:-575,z:120},{name:'Colaba Causeway',x:115,z:-580},{name:'Nariman Point',x:-460,z:-465}];let idx=0;const discovered=new Set();
 const beacon=new THREE.Group();const beam=new THREE.Mesh(new THREE.CylinderGeometry(3,3,90,24,1,true),new THREE.MeshBasicMaterial({color:0xffd448,transparent:true,opacity:.17,depthWrite:false,side:THREE.DoubleSide}));beam.position.y=45;beacon.add(beam);const ring=new THREE.Mesh(new THREE.TorusGeometry(5,.7,10,32),new THREE.MeshBasicMaterial({color:0xffd448}));ring.rotation.x=Math.PI/2;ring.position.y=1.3;beacon.add(ring);scene.add(beacon);
 function checkpoint(){const d=destinations[idx];beacon.position.set(d.x,0,d.z);$('mission').textContent='🎯 Explore '+d.name;$('found').textContent='Landmarks: '+discovered.size+' / '+destinations.length}
@@ -68,10 +68,29 @@ $('camera').onclick=()=>mode=(mode+1)%3;$('reset').onclick=()=>{pos.set(0,0,0);h
 const follow=new THREE.Vector3();const clock=new THREE.Clock();let toastUntil=0;
 function update(){const dt=Math.min(clock.getDelta(),.05);const accel=keys.has('ArrowUp')?1:0,back=keys.has('ArrowDown')?1:0;
 if(accel)speed+=20*dt;if(back)speed-=29*dt;if(!accel&&!back)speed*=Math.pow(.975,dt*60);if(keys.has(' '))speed*=Math.pow(.8,dt*60);speed=THREE.MathUtils.clamp(speed,-26,115);if(Math.abs(speed)<.15)speed=0;
-const steer=(keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0);heading+=steer*dt*(.45+Math.min(Math.abs(speed),80)*.013)*Math.sign(speed||1);
+const steer=(keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0);const previousHeading=heading;heading+=steer*dt*(.45+Math.min(Math.abs(speed),80)*.013)*Math.sign(speed||1);
+const roadDistanceForSteer=v=>Math.abs(v-Math.round(v/roadSpacing)*roadSpacing);
+const steeringFootprint=(x,z,a)=>{const s=Math.sin(a),c=Math.cos(a);return [[x+s*1.7+c*.82,z-c*1.7+s*.82],[x+s*1.7-c*.82,z-c*1.7-s*.82],[x-s*1.7+c*.82,z+c*1.7+s*.82],[x-s*1.7-c*.82,z+c*1.7-s*.82]].every(([px,pz])=>roadDistanceForSteer(px)<=roadWidth/2-1.3||roadDistanceForSteer(pz)<=roadWidth/2-1.3)};
+if(!steeringFootprint(pos.x,pos.z,heading))heading=previousHeading;
 const r=heading;const nx=pos.x+Math.sin(r)*speed/3.6*dt,nz=pos.z-Math.cos(r)*speed/3.6*dt;
-const collides=buildings.some(b=>Math.abs(nx-b.x)<b.w/2+1.25&&Math.abs(nz-b.z)<b.d/2+1.6);
-if(!collides&&Math.abs(nx)<810&&Math.abs(nz)<810){pos.x=nx;pos.z=nz}else speed*=-.17;
+// Road-only vehicle collision: grid avenues and streets are the only driveable surface.
+const roadDistance=v=>Math.abs(v-Math.round(v/roadSpacing)*roadSpacing);
+const roadHalf=roadWidth/2-1.3;
+const onRoad=(x,z)=>roadDistance(x)<=roadHalf||roadDistance(z)<=roadHalf;
+const bounded=(x,z)=>Math.abs(x)<world*roadSpacing+roadHalf&&Math.abs(z)<world*roadSpacing+roadHalf;
+// The car cannot cross pavements, green areas, or buildings. The full vehicle footprint
+// is approximated by the center plus its four corners, with allowance for turning.
+const footprint=(x,z,a)=>{
+ const f=Math.sin(a),g=-Math.cos(a),sx=Math.cos(a),sz=Math.sin(a);
+ return [[x,z],[x+f*1.7+sx*.82,z+g*1.7+sz*.82],[x+f*1.7-sx*.82,z+g*1.7-sz*.82],[x-f*1.7+sx*.82,z-g*1.7+sz*.82],[x-f*1.7-sx*.82,z-g*1.7-sz*.82]];
+};
+const valid=(x,z,a)=>bounded(x,z)&&footprint(x,z,a).every(p=>onRoad(p[0],p[1]));
+if(valid(nx,nz,heading)){pos.x=nx;pos.z=nz}else{
+  // Allow sliding along the street boundary instead of getting permanently stuck.
+  if(valid(nx,pos.z,heading))pos.x=nx;
+  else if(valid(pos.x,nz,heading))pos.z=nz;
+  else {speed*=-.12;collisionFlash=performance.now()+220}
+}
 car.position.copy(pos);car.rotation.y=-heading;
 for(const w of wheels)w.rotation.x+=speed*dt*.12;
 const backDistance=mode===0?12:mode===1?5:42,height=mode===0?5.6:mode===1?2.7:34;
@@ -80,7 +99,7 @@ follow.lerp(target,1-Math.exp(-5*dt));camera.position.copy(follow);camera.lookAt
 const d=destinations[idx],dist=Math.hypot(pos.x-d.x,pos.z-d.z);$('distance').textContent=Math.round(dist)+' m to checkpoint';$('speed').textContent=Math.abs(Math.round(speed));
 beacon.rotation.y+=dt*.5;ring.rotation.z+=dt*.6;
 if(dist<16){discovered.add(d.name);idx=(idx+1)%destinations.length;checkpoint();$('toast').textContent='✓ '+d.name+' discovered!';$('toast').style.opacity='1';toastUntil=performance.now()+2300}
-if(performance.now()>toastUntil)$('toast').style.opacity='0';
+if(performance.now()>toastUntil)$('toast').style.opacity='0';if(performance.now()<collisionFlash){$('distance').textContent='🚧 Road boundary — turn at an intersection'}
 renderer.render(scene,camera);requestAnimationFrame(update)}
 follow.set(0,6,13);$('loading').remove();update();
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.8))});
